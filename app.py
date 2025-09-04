@@ -4,8 +4,8 @@ import json
 
 # --- Page Configuration ---
 st.set_page_config(
-    page_title="AI-Powered DB Action Analyzer",
-    page_icon="🧠",
+    page_title="10D Stores - AI Database Action Analyzer",
+    page_icon="🏪",
     layout="wide"
 )
 
@@ -23,25 +23,67 @@ def analyze_action_with_ai(user_query: str):
     api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={api_key}"
 
     db_schema = """
-        - User (id, email, password, created_at, updated_at, fcm_token, is_active, is_verified, profile_image, phone_number, first_name, last_name)
-        - Business (id, name, address, phone_number, email, website, business_qr_code, created_at, updated_at, is_active, category_id, owner_id)
-        - Category (id, name, description, created_at, updated_at)
-        - Deal (id, title, description, start_date, end_date, is_active, business_id, created_at, updated_at, redemption_limit, user_redemption_limit)
-        - DealRedemption (id, user_id, deal_id, business_id, redeemed_at, transaction_id)
-        - FavoriteDeal (id, user_id, deal_id, created_at)
+        10D Stores Firestore Database Schema:
+        
+        1. users (Document ID: userId)
+           - uid, email, displayName, photoUrl, userType, phoneNumber, isPhoneVerified
+           - createdAt, lastLoginAt, fcmTokens, isActive, favoritedBusinessIds
+        
+        2. businesses (Document ID: auto-generated)
+           - businessId, ownerId, businessName, description, logoUrl, coverImages
+           - category, contactInfo (phone, email), address (street, city, state, zipCode)
+           - geolocation, uniqueQrCodeId, verificationStatus, verificationDocs
+           - adminNotes, createdAt, lastUpdatedAt, isSuspended, suspensionReason
+        
+        3. business_public_profiles (Document ID: businessId)
+           - businessId, businessName, logoUrl, category, city, geolocation
+           - averageRating, reviewCount, activeOfferCount
+        
+        4. products (Document ID: auto-generated)
+           - productId, businessId, name, description, imageUrl, price
+           - productCategory, marginType, isActive, createdAt, lastUpdatedAt
+        
+        5. offers (Document ID: auto-generated)
+           - offerId, businessId, businessName, title, description
+           - discountType, discountValue, status, applicability (scope, targetProductIds, targetProductCategories, targetMarginTypes)
+           - conditions (minBillAmount, validFrom, validUntil, applicableDays, time)
+           - usageLimits (limitPerUser, totalLimit), usageStats (timesUsed)
+           - createdBy, createdAt
+        
+        6. redemptions (Document ID: auto-generated)
+           - redemptionId, userId, businessId, offerId, timestamp
+           - billDetails (amountBeforeDiscount, calculatedDiscount, amountAfterDiscount)
+           - offerSnapshot (title, discountType, discountValue)
+           - userDisplayName, businessName
+        
+        7. reviews (Document ID: auto-generated)
+           - reviewId, businessId, userId, redemptionId, rating, reviewText
+           - timestamp, ownerResponseText, ownerResponseTimestamp
+           - isHiddenByAdmin, moderationNotes
+        
+        8. platform_config (Document ID: "global_settings")
+           - businessCategories, minRequiredAppVersionCustomer, minRequiredAppVersionBusiness
+           - isForceUpdateRequired, maintenanceMode, supportContact
+           - termsAndConditionsUrl, privacyPolicyUrl
     """
 
     system_prompt = """
-        You are an expert database analyst. Your task is to analyze a user-described action and determine its impact on the provided database schema (collections).
+        You are an expert Firestore database analyst for the 10D Stores application. Your task is to analyze a user-described action and determine its impact on the provided Firestore collections.
+        
+        The 10D Stores app is a discount/offer platform where:
+        - Users can browse businesses, view offers, redeem discounts, and leave reviews
+        - Business owners can create offers and manage their business profiles
+        - The system tracks redemptions, reviews, and user preferences
+        
         You MUST respond with ONLY a valid JSON object following this exact structure. Do not include markdown, comments, or any other text.
         {
-          "description": "A detailed paragraph summarizing the database operations. Explain what data is being read for validation or context, and what new data is being written or which fields are being updated. Be specific about the flow of operations. IMPORTANT: When you mention a field name from the schema, you MUST wrap it in double asterisks. For example: '...checks the **is_active** field...' or '...updates the **first_name** and **last_name** fields.'.",
+          "description": "A detailed paragraph summarizing the Firestore operations. Explain what data is being read for validation or context, and what new data is being written or which fields are being updated. Be specific about the flow of operations and how it relates to the 10D Stores business logic. IMPORTANT: When you mention a field name from the schema, you MUST wrap it in double asterisks. For example: '...checks the **isActive** field...' or '...updates the **favoritedBusinessIds** array...'.",
           "impact": [
             {
               "table": "CollectionName",
               "operation": "READ" | "WRITE" | "DELETE",
               "fields": ["field1", "field2"],
-              "reason": "A concise explanation of why this operation occurs."
+              "reason": "A concise explanation of why this operation occurs in the context of 10D Stores."
             }
           ]
         }
@@ -89,15 +131,15 @@ def get_operation_badge(operation):
     return f'<span style="background-color: {bg_color}; color: {text_color}; font-size: 0.75rem; font-weight: 600; padding: 4px 8px; border-radius: 9999px; float: right;">{op}</span>'
 
 # --- Main App Interface ---
-st.title("🧠 AI-Powered DB Action Analyzer")
-st.markdown("Describe any user action related to the project, and the AI will analyze its impact on the database schema.")
+st.title("🏪 10D Stores - AI Database Action Analyzer")
+st.markdown("Describe any user action related to the 10D Stores app, and the AI will analyze its impact on the Firestore database schema.")
 
 st.markdown("---")
 
 # Input section
 action_input = st.text_area(
     "**Describe the User Action**",
-    placeholder="e.g., A user favorites a deal that is no longer active.",
+    placeholder="e.g., A customer redeems a 20% off offer at a restaurant, A business owner creates a new discount offer, A user leaves a review after redeeming an offer",
     height=100,
     key="action_input"
 )
