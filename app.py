@@ -23,17 +23,18 @@ def analyze_action_with_ai(user_query: str):
     api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={api_key}"
 
     db_schema = """
-        10D Stores Firestore Database Schema:
+        10D Stores: Final Firestore Database Schema
         
         1. users (Document ID: userId)
            - uid, email, displayName, photoUrl, userType, phoneNumber, isPhoneVerified
            - createdAt, lastLoginAt, fcmTokens, isActive, favoritedBusinessIds
+           - subscriptionDetails (planId, status, expiresOn)
         
         2. businesses (Document ID: auto-generated)
            - businessId, ownerId, businessName, description, logoUrl, coverImages
            - category, contactInfo (phone, email), address (street, city, state, zipCode)
            - geolocation, uniqueQrCodeId, verificationStatus, verificationDocs
-           - adminNotes, createdAt, lastUpdatedAt, isSuspended, suspensionReason
+           - adminNotes, createdAt, lastUpdatedAt, isSuspended
         
         3. business_public_profiles (Document ID: businessId)
            - businessId, businessName, logoUrl, category, city, geolocation
@@ -50,30 +51,43 @@ def analyze_action_with_ai(user_query: str):
            - usageLimits (limitPerUser, totalLimit), usageStats (timesUsed)
            - createdBy, createdAt
         
-        6. redemptions (Document ID: auto-generated)
+        6. carts (Document ID: userId)
+           - userId, items (offerId, businessId, addedAt), lastUpdatedAt
+        
+        7. visit_requests (Document ID: auto-generated)
+           - requestId, userId, businessId, offerId, status, createdAt, expiresAt
+        
+        8. redemptions (Document ID: auto-generated)
            - redemptionId, userId, businessId, offerId, timestamp
            - billDetails (amountBeforeDiscount, calculatedDiscount, amountAfterDiscount)
            - offerSnapshot (title, discountType, discountValue)
-           - userDisplayName, businessName
+           - userDisplayName, businessName, paymentMethod, inAppPaymentId
         
-        7. reviews (Document ID: auto-generated)
-           - reviewId, businessId, userId, redemptionId, rating, reviewText
-           - timestamp, ownerResponseText, ownerResponseTimestamp
-           - isHiddenByAdmin, moderationNotes
+        9. in_app_payments (Document ID: auto-generated)
+           - paymentId, userId, redemptionId, amount, status, gatewayTransactionId, createdAt
         
-        8. platform_config (Document ID: "global_settings")
-           - businessCategories, minRequiredAppVersionCustomer, minRequiredAppVersionBusiness
-           - isForceUpdateRequired, maintenanceMode, supportContact
-           - termsAndConditionsUrl, privacyPolicyUrl
+        10. reviews (Document ID: auto-generated)
+            - reviewId, businessId, userId, redemptionId, rating, reviewText
+            - isAnonymous, timestamp, ownerResponseText, ownerResponseTimestamp
+            - isHiddenByAdmin
+        
+        11. notifications (Document ID: auto-generated)
+            - recipientId, title, body, isRead, createdAt
+        
+        12. platform_config (Document ID: "global_settings")
+            - businessCategories, minRequiredAppVersionCustomer, minRequiredAppVersionBusiness
+            - maintenanceMode (isEnabled, message), supportContact (email, phone)
+            - termsAndConditionsUrl, privacyPolicyUrl
     """
 
     system_prompt = """
         You are an expert Firestore database analyst for the 10D Stores application. Your task is to analyze a user-described action and determine its impact on the provided Firestore collections.
         
         The 10D Stores app is a discount/offer platform where:
-        - Users can browse businesses, view offers, redeem discounts, and leave reviews
-        - Business owners can create offers and manage their business profiles
-        - The system tracks redemptions, reviews, and user preferences
+        - Users can browse businesses, add offers to cart, send visit requests, redeem discounts, and leave reviews
+        - Business owners can create offers, manage business profiles, and respond to visit requests
+        - The system handles in-app payments, tracks redemptions, manages notifications, and stores user preferences
+        - Features include cart management, 2-minute visit request confirmations, and subscription tracking
         
         You MUST respond with ONLY a valid JSON object following this exact structure. Do not include markdown, comments, or any other text.
         {
@@ -139,7 +153,7 @@ st.markdown("---")
 # Input section
 action_input = st.text_area(
     "**Describe the User Action**",
-    placeholder="e.g., A customer redeems a 20% off offer at a restaurant, A business owner creates a new discount offer, A user leaves a review after redeeming an offer",
+    placeholder="e.g., A customer adds offers to cart and sends visit request, A business owner accepts a visit request, A user redeems an offer with in-app payment, A customer leaves an anonymous review",
     height=100,
     key="action_input"
 )
